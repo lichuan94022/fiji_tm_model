@@ -1,0 +1,90 @@
+# Clk Frequency (in GHz)
++clkfreq=2.0 
+
+# - or -
+
+# Clk Period (in ns)
+# Will select period if period is non-zero
++clkperiod=0
+
+# Number of vlans
++*nvlans=5
+
+# Number of queues per vlan
++*vlan0_nqueues=3
++*vlan1_nqueues=3
++*vlan2_nqueues=3
++*vlan3_nqueues=3
++*vlan4_nqueues=3
+
+# Minimum pkt size (in B) for all vlans 
++*vlan*_minsize=64 
+
+# Minimum pkt size (in B) for VlanX and QnumY (overrides previous knob)
++*vlan0_qnum0_minsize=16 
++*vlan1_qnum0_minsize=32 
++*vlan2_qnum0_minsize=48 
++*vlan3_qnum0_minsize=80 
++*vlan4_qnum0_minsize=96 
+# end
+
+# Maximum pkt size (in B) for all vlan and all queues
++*maxsize=1024
+
+# Total number of packets
++*npkt=100000
+
+# Input Port per vlan/queue (in Gbps)
++*vlan*_irate=8
+
+# Output Port Rate (in Gbps)
++*orate=100
+
+# Queue Shaper Rate (in Gbps)
++*vlan0_qnum0_qshaper_rate=5
++*vlan0_qnum1_qshaper_rate=5
++*vlan0_qnum2_qshaper_rate=5
++*vlan1_qnum0_qshaper_rate=5
++*vlan1_qnum1_qshaper_rate=5
++*vlan1_qnum2_qshaper_rate=5
++*vlan2_qnum0_qshaper_rate=5
++*vlan2_qnum1_qshaper_rate=5
++*vlan2_qnum2_qshaper_rate=5
++*vlan3_qnum0_qshaper_rate=5
++*vlan3_qnum1_qshaper_rate=5
++*vlan3_qnum2_qshaper_rate=5
++*vlan4_qnum0_qshaper_rate=5
++*vlan4_qnum1_qshaper_rate=5
++*vlan4_qnum2_qshaper_rate=5
+
+# Vlan Shaper Rate (in Gbps)
++*vlan0_vshaper_rate=20
++*vlan1_vshaper_rate=20
++*vlan2_vshaper_rate=20
++*vlan3_vshaper_rate=20
++*vlan4_vshaper_rate=20
+
+
+# Queue Shaper Refresh Interval (in clks)
++*vlan0_qnum0_qshaper_refresh_interval=50
++*vlan0_qnum1_qshaper_refresh_interval=50
++*vlan0_qnum2_qshaper_refresh_interval=50
++*vlan1_qnum0_qshaper_refresh_interval=50
++*vlan1_qnum1_qshaper_refresh_interval=50
++*vlan1_qnum2_qshaper_refresh_interval=50
++*vlan2_qnum0_qshaper_refresh_interval=50
++*vlan2_qnum1_qshaper_refresh_interval=50
++*vlan2_qnum2_qshaper_refresh_interval=50
++*vlan3_qnum0_qshaper_refresh_interval=50
++*vlan3_qnum1_qshaper_refresh_interval=50
++*vlan3_qnum2_qshaper_refresh_interval=50
++*vlan4_qnum0_qshaper_refresh_interval=50
++*vlan4_qnum1_qshaper_refresh_interval=50
++*vlan4_qnum2_qshaper_refresh_interval=50
+
+# Vlan Shaper Refresh Interval (in clks)
++*vlan0_vshaper_refresh_interval=100
++*vlan1_vshaper_refresh_interval=100
++*vlan2_vshaper_refresh_interval=100
++*vlan3_vshaper_refresh_interval=100
++*vlan4_vshaper_refresh_interval=100

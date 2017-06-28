@@ -1,0 +1,42 @@
+# Clk Frequency (in GHz)
++clkfreq=1.0 
+
+# - or -
+
+# Clk Period (in ns)
+# Will select period if period is non-zero
++clkperiod=0
+
+# Number of vlans
++*nvlans=1
+
+# Number of queues per vlan
++*vlan0_nqueues=2
+
+# Minimum pkt size (in B) for VlanX and QnumY (overrides previous knob)
++*vlan0_qnum*_minsize=64 
+
+# Maximum pkt size (in B) for all vlan and all queues
++*maxsize=1024
+
+# Total number of packets
++*npkt=500
+
+# Input Port per vlan/queue (in Gbps)
++*vlan*_irate=100
+
+# Output Port Rate (in Gbps)
++*orate=100
+
+# Queue Shaper Rate (in Gbps)
++*vlan0_qnum0_qshaper_rate=80
++*vlan0_qnum1_qshaper_rate=20
+
+# Vlan Shaper Rate (in Gbps)
++*vlan0_vshaper_rate=50
+
+# Queue Shaper Refresh Period (in clks)
++*vlan0_qnum*_qshaper_refresh_period=50
+
+# Vlan Shaper Refresh Period (in clks)
++*vlan0_vshaper_refresh_period=100
