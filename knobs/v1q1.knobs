@@ -4,8 +4,8 @@
 # - or -
 
 # Clk  (in ns)
-# Will select period if period is non-zero
-+clkperiod=0
+# Will select interval if interval is non-zero
++clkinterval=0
 
 # Number of vlans
 +*nvlans=1
@@ -33,6 +33,12 @@
 
 # Vlan Shaper Rate (in Gbps)
 +*vlan0_vshaper_rate=100
+
+# Queue Shaper Max Burst Size
++*vlan0_qnum*_qshaper_max_burst_size=1600
+
+# # Vlan Shaper Max Burst Size
++*vlan0_vshaper_max_burst_size=1600
 
 # Queue Shaper Refresh Interval (in clks)
 +*vlan0_qnum0_qshaper_refresh_interval=10

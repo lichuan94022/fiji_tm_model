@@ -49,7 +49,11 @@ class Shaper {
     double cur_num_tokens;
     int clks_before_refresh;
     int refresh_interval;
+    int max_burst_size;
     std::string name;
+    int last_upd_clk_count;
+    double total_sent_bytes;
+    double total_added_bytes;
 
     double bytes_per_clk;
     double bytes_per_refresh;
@@ -66,6 +70,7 @@ class Shaper {
     //            shaper_rate (in Gbps) - rate at which shaper allows transmission
     //            clk_period (in ns) - clock period of shaper
     //            shaper_refresh_interval (in clks) - time between token additions
+    //            shaper_max_burst_size (in B) - maximum burst size 
     //
     // Description: 
     //   Initializes shaper by setting the number of bytes per refresh,
@@ -73,7 +78,7 @@ class Shaper {
     //   Note: refresh refers to adding tokens to bucket (or shaper).
     //
     //////////////////////////////////////////
-    bool init_shaper(std::string name, double shaper_rate, double clk_period, int shaper_refresh_interval);
+    bool init_shaper(std::string name, double shaper_rate, double clk_period, int shaper_refresh_interval, int shaper_max_burst_size);
 
     //////////////////////////////////////////
     // Function: init_shaper
@@ -92,14 +97,15 @@ class Shaper {
     // Return Value: 1 = "yes, okay to transmit"
     //               0 = "no, queue packet"
     //
-    // Arguments: num_pkt_bytes (in bytes) - pkt bytes requesting transmission
+    // Arguments: clk_count - current clk count
+    //            num_pkt_bytes (in bytes) - pkt bytes requesting transmission
     //            wait_clks (in clks) - time to wait before okay to transmit
     //                                - only valid when shaper has indicated "no"
     // Description: 
     //   Should be called every "clk cycle" to maintain shaper credits and
     //   time to next token refresh (increment)
     //////////////////////////////////////////
-    bool check_shaper(int num_pkt_bytes, double & wait_clks); 
+    bool check_shaper(int unsigned clk_count, int num_pkt_bytes, double & wait_clks); 
 
     //////////////////////////////////////////
     // Function: decr_shaper
@@ -112,7 +118,7 @@ class Shaper {
     //   Should be called when pkt which has been waiting is scheduled for
     //   transmission.
     //////////////////////////////////////////
-    void decr_shaper(int num_pkt_bytes); 
+    void decr_shaper(int unsigned cur_clk_count, int num_pkt_bytes); 
   
 };
  

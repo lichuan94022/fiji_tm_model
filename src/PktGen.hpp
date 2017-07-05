@@ -52,6 +52,7 @@ class PktGen {
   int **knob_max_pkt_size;
   double knob_oport_rate;
   double **knob_iqueue_rate;
+  int knob_max_wait_queue_size;
 
   // Status Variables
   double **cur_iqueue_rate;
@@ -74,7 +75,7 @@ class PktGen {
     int **num_bytes_sent_per_queue;
 
     // Pointer to Scheduler Wait Queue
-    std::deque <PktInfo> **m_scheduler_pkt_wait_queue;
+    std::vector <PktInfo> **m_scheduler_pkt_wait_queue;
 
     //////////////////////////////////////////////////////////////////////
     // Function: init 
@@ -89,7 +90,8 @@ class PktGen {
     // Description: 
     //   Allocate dynamic arrays, and set pointers to wait queue and output_handler
     /////////////////////////////////////////////////////////////////////////
-    void init(int num_vlans, int* num_queues, std::deque <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
+    //void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
+    void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
 
 
     //////////////////////////////////////////////////////////////////////

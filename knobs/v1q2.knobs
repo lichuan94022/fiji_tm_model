@@ -4,8 +4,8 @@
 # - or -
 
 # Clk Period (in ns)
-# Will select period if period is non-zero
-+clkperiod=0
+# Will select interval if interval is non-zero
++clkinterval=0
 
 # Number of vlans
 +*nvlans=1
@@ -19,8 +19,17 @@
 # Maximum pkt size (in B) for all vlan and all queues
 +*maxsize=1024
 
+# Max size of wait queue
++*max_wait_queue_size=128
+
 # Total number of packets
-+*npkt=500
++*npkt=15000
+
+# Stop on rcvd pkt (rather than all pkts draining)
++*stop_on_rcvd_pkt=1
+
+# Total number of packets
++*nrcvd_pkt=7500
 
 # Input Port per vlan/queue (in Gbps)
 +*vlan*_irate=100
@@ -35,8 +44,25 @@
 # Vlan Shaper Rate (in Gbps)
 +*vlan0_vshaper_rate=50
 
-# Queue Shaper Refresh Period (in clks)
-+*vlan0_qnum*_qshaper_refresh_period=50
+# Queue Shaper Max Burst Size
++*vlan0_qnum*_qshaper_max_burst_size=1600
 
-# Vlan Shaper Refresh Period (in clks)
-+*vlan0_vshaper_refresh_period=100
+# Vlan Shaper Max Burst Size
++*vlan0_vshaper_max_burst_size=1600
+
+# Queue Shaper Refresh Interval (in clks)
++*vlan0_qnum*_qshaper_refresh_interval=50
+
+# Vlan Shaper Refresh Interval (in clks)
++*vlan0_vshaper_refresh_interval=100
+
+# Number of Output Fifo Entries
++*num_ofifo_entries=8
+
+# #Number of Bytes to Gather (per clk)
++*gather_bytes_per_clk=25
+
+# Shaper Decrement Type
++*shaper_pre_decr=1
++*shaper_pre_decr_both=0
++*shaper_pre_decr_on_type=0

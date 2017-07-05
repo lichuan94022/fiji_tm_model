@@ -53,7 +53,8 @@ PktGen::~PktGen() {
 ///////////////////////////////////////////////////////////////////////
 // Function: init 
 ///////////////////////////////////////////////////////////////////////
-void PktGen::init(int num_vlans, int* num_queues, std::deque <PktInfo> **wait_queue, OutputHandler *ref_output_handler) {
+//void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler) {
+void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler) {
 
   // Set pointers
   m_scheduler_pkt_wait_queue = wait_queue;
@@ -133,6 +134,10 @@ void PktGen::init(int num_vlans, int* num_queues, std::deque <PktInfo> **wait_qu
       logger::dv_debug(DV_INFO, "Vlan%0d Queue%0d Max Pkt Size (%s) is: %0dB\n", vnum, qnum, maxsize_knob.c_str(), knob_max_pkt_size[vnum][qnum]);
     }
   }
+
+  std::string max_wait_queue_size_knob = "max_wait_queue_size";
+  knob_max_wait_queue_size = sknobs_get_value((char *) max_wait_queue_size_knob.c_str(), 32);
+  logger::dv_debug(DV_INFO, "Max Queue Size is: %0d entries\n", knob_max_wait_queue_size);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -155,7 +160,7 @@ bool PktGen::need_new_pkt(PktInfo &new_pkt, double total_time_in_ns) {
       logger::dv_debug(DV_DEBUG1, "need_new_pkt: num_bytes_sent_per_queue: %0d\n", num_bytes_sent_per_queue[vnum][qnum]);
       logger::dv_debug(DV_DEBUG1, "need_new_pkt: total_time_in_ns: %2f\n", total_time_in_ns);
       cur_iqueue_rate[vnum][qnum] = (num_bytes_sent_per_queue[vnum][qnum] * 8)/total_time_in_ns;
-      logger::dv_debug(DV_DEBUG1, "need_new_pkt: cur_iqueue_rate: %2f\n", cur_iqueue_rate[vnum][qnum]);
+      logger::dv_debug(DV_DEBUG1, "need_new_pkt: cur_iqueue_rate: %2fGbps\n", cur_iqueue_rate[vnum][qnum]);
     }
   }
 
@@ -179,15 +184,30 @@ bool PktGen::select_new_pkt(PktInfo &new_pkt) {
   int tried_all_vlans_once = 0;
   int start_vnum = cur_vnum;
   int start_qnum = cur_qnum[cur_vnum];
+  int loop = 0;
 
   while(!has_new_pkt) {
 
-    logger::dv_debug(DV_DEBUG1, "select_new_pkt: vlan%0d queue%0d cur_iqueue_rate:%2f iqueue_rate:%2f, scheduler_pkt_wait_queue size = %d\n", cur_vnum, cur_qnum[cur_vnum], cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]], knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]], m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size());
+//    logger::dv_debug(DV_DEBUG1, "select_new_pkt: vlan%0d queue%0d cur_iqueue_rate:%2f iqueue_rate:%2f, scheduler_pkt_wait_queue size = %d\n", cur_vnum, cur_qnum[cur_vnum], cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]], knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]], m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size());
+    logger::dv_debug(DV_DEBUG1, "select_new_pkt: vlan%0d queue%0d cur_iqueue_rate:%2f iqueue_rate:%2f, \n", cur_vnum, cur_qnum[cur_vnum], cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]], knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]]);
     logger::dv_debug(DV_DEBUG1, "select_new_pkt: min_pkt_size=%0d max_pkt_size=%0d\n", knob_min_pkt_size[cur_vnum][cur_qnum[cur_vnum]], knob_max_pkt_size[cur_vnum][cur_qnum[cur_vnum]]);
 
     // Generate new pkt if current queue is below configured rate and
     // nothing is in the wait queue
-    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] < knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] && (m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() == 0)) {
+//    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] < knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] && (m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() == 0)) 
+// For debug - see reason for pkt generation slow down 
+/*
+    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] > knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]]) {
+        logger::dv_debug(DV_INFO, "  select_new_pkt: vlan%0d, queue%0d : rate(%2f) too high to generate\n", cur_vnum, cur_qnum[cur_vnum], cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]]);
+    }
+    if(m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() > knob_max_wait_queue_size) {
+        logger::dv_debug(DV_INFO, "  select_new_pkt: vlan%0d, queue%0d : queue(%0d>%0d) too long to generate\n", cur_vnum, cur_qnum[cur_vnum], m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size(), knob_max_wait_queue_size);
+    }
+*/
+
+    // Generate new pkt if current queue is below configured rate 
+    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] <= knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] && (m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() <= knob_max_wait_queue_size)) 
+    {
       new_pkt.reset(cur_pkt_id);
       cur_pkt_id++;
 
@@ -199,14 +219,13 @@ bool PktGen::select_new_pkt(PktInfo &new_pkt) {
       else {
 	new_pkt.num_pkt_bytes = rand() % (knob_max_pkt_size[cur_vnum][cur_qnum[cur_vnum]]-knob_min_pkt_size[cur_vnum][cur_qnum[cur_vnum]] + 1);
       }      
-      new_pkt.num_pkt_bytes += knob_min_pkt_size[cur_vnum][cur_qnum[cur_vnum]];
       new_pkt.vlan = cur_vnum;
       new_pkt.qnum = cur_qnum[cur_vnum];
+      logger::dv_debug(DV_INFO, "select_new_pkt: vlan%0d, queue%0d: Generating new pkt -  pkt_id:%0d bytes:%0d\n", new_pkt.vlan, new_pkt.qnum, new_pkt.pkt_id, new_pkt.num_pkt_bytes);
+      new_pkt.num_pkt_bytes += knob_min_pkt_size[cur_vnum][cur_qnum[cur_vnum]];
 
       has_new_pkt = 1;
 
-      logger::dv_debug(DV_DEBUG1, "select_new_pkt: Generating new pkt\n");
-      logger::dv_debug(DV_DEBUG1, "select_new_pkt: vlan%0d queue%0d pkt_id:%0d bytes:%0d\n", new_pkt.vlan, new_pkt.qnum, new_pkt.pkt_id, new_pkt.num_pkt_bytes);
       cur_qnum[cur_vnum] = (cur_qnum[cur_vnum]+1) % knob_num_queues[cur_vnum];
       logger::dv_debug(DV_DEBUG1, "select_new_pkt: updating nxt_qnum[%0d]:%d\n", cur_vnum, cur_qnum[cur_vnum]);
       cur_vnum = (cur_vnum+1) % knob_num_vlans;
@@ -251,6 +270,8 @@ bool PktGen::select_new_pkt(PktInfo &new_pkt) {
         }
       }
     }
+    loop++;
+    logger::dv_debug(DV_DEBUG1, "select_new_pkt: loop:%0d\n", loop);
   }
 
   total_bytes += new_pkt.num_pkt_bytes;
@@ -272,7 +293,7 @@ void PktGen::report_stats(double total_time_in_ns) {
   for(int vnum=0; vnum<knob_num_vlans; vnum++) {
     for(int qnum=0; qnum<knob_num_queues[vnum]; qnum++) {
       double output_rate = (num_bytes_sent_per_queue[vnum][qnum]*8)/total_time_in_ns;
-      logger::dv_debug(DV_INFO, "Vlan: %0d Queue: %0d:  Exp Input Queue Rate: %2f Act Input Queue Rate: %2f\n", vnum, qnum, knob_iqueue_rate[vnum][qnum], output_rate);
+      logger::dv_debug(DV_INFO, "Vlan: %0d Queue: %0d:  Exp Input Queue Rate: %2f Act Input Queue Rate: %2f Cur Iqueue Rate: %2f\n", vnum, qnum, knob_iqueue_rate[vnum][qnum], output_rate, cur_iqueue_rate[vnum][qnum]);
     }
   }
   logger::dv_debug(DV_INFO, "Number of Packets Sent: %0d\n", num_pkts_sent);

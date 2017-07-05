@@ -4,8 +4,8 @@
 # - or -
 
 # Clk  (in ns)
-# Will select period if period is non-zero
-+clkperiod=0
+# Will select interval if interval is non-zero
++clkinterval=0
 
 # Number of vlans
 +*nvlans=2

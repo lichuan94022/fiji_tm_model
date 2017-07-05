@@ -30,11 +30,10 @@
 
 #include<stdio.h>
 #include<stdlib.h>
-#include<deque>
+#include<vector>
 #include<string>
 #include<sstream>
 #include<math.h>
-#include <vector>
 
 #include "Shaper.hpp"
 #include "PktGen.hpp"
@@ -65,16 +64,24 @@ class Scheduler {
     double knob_clk_period;
     double **knob_qshaper_rate;
     double *knob_vshaper_rate;
+    double **knob_qshaper_max_burst_size;
+    double *knob_vshaper_max_burst_size;
     int **knob_qshaper_refresh_interval;
     int *knob_vshaper_refresh_interval;
 
     int knob_num_total_pkts;
     int *knob_num_queues;
     int knob_num_vlans;
+    int knob_stop_on_rcvd_pkts;
+    int knob_num_rcvd_pkts;
 
     int knob_gather_bytes_per_clk;
     double knob_oport_rate;
     int knob_num_ofifo_entries;
+
+    int knob_shaper_pre_decr;
+    int knob_shaper_pre_decr_both;
+    int knob_shaper_pre_decr_on_type;
 
     // Simulation Variables
     double total_time_in_ns;
@@ -84,7 +91,8 @@ class Scheduler {
     PktGen pkt_gen;
     Shaper **queue_shaper;
     Shaper *vlan_shaper;
-    std::deque <PktInfo> **pkt_wait_queue;
+    std::vector <PktInfo> **pkt_wait_queue;
+    int **pkt_wait_queue_max;
     std::priority_queue<PktInfo, std::vector<PktInfo> > pkt_wait_heap;
     OutputHandler output_handler;
     PktInfo new_pkt;

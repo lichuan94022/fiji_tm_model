@@ -309,13 +309,6 @@ void Scheduler::get_knobs(int argc, char* argv[]) {
   knob_gather_bytes_per_clk = sknobs_get_value((char*) "gather_bytes_per_clk", 15);
   logger::dv_debug(DV_INFO, "Number of Gather Bytes Per Clk: %0d\n", knob_gather_bytes_per_clk);
 
-  // Set Shaper Decrement Type
-  knob_shaper_pre_decr = sknobs_get_value((char*) "shaper_pre_decr", 1);
-  logger::dv_debug(DV_INFO, "Shaper Pre-Decrement: %0d\n", knob_shaper_pre_decr);
-  knob_shaper_pre_decr_both = sknobs_get_value((char*) "shaper_pre_decr_both", 0);
-  logger::dv_debug(DV_INFO, "Shaper Pre-Decrement Both Queue/Vlan: %0d\n", knob_shaper_pre_decr_both);
-  knob_shaper_pre_decr_on_type = sknobs_get_value((char*) "shaper_pre_decr_on_type", 0);
-  logger::dv_debug(DV_INFO, "Shaper Pre-Decrement Fail Type: %0d\n", knob_shaper_pre_decr_on_type);
 }
 
 /////////////////////////////////////////////////////////
@@ -344,42 +337,14 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
       switch (delayed_pkt.m_shaper_wait) 
       {
 	case SHAPER_QUEUE_WAIT:
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-  	      vlan_shaper[new_pkt.vlan].decr_shaper(logger::m_clk_count, new_pkt.num_pkt_bytes);
-	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-            }
-            else {
-              if(!knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-              }
-            }
-          }
+	  queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
 	  break;
 	case SHAPER_VLAN_WAIT:
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-            }
-            else {
-              if(!knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-              }
-            }
-          }
+	  queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
 //	  vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
 	  break;
 	case SHAPER_VLAN_QUEUE_WAIT:
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-            }
-            else {
-              if(!knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-              }
-            }
-          }
+	  queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
 //	  vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
 	  break;
 	default:
@@ -463,20 +428,7 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
           delay_pkt_to_shape.wait_time_in_clks = wait_time_in_clks; 
 //          delay_pkt_to_shape.send_time_in_clks = (ceil(wait_time_in_clks) + logger::m_clk_count);
           delay_pkt_to_shape.send_time_in_clks = (wait_time_in_clks + logger::m_clk_count);
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-  	      if((new_pkt.m_shaper_wait == SHAPER_VLAN_WAIT) ||
-                 (new_pkt.m_shaper_wait == SHAPER_VLAN_QUEUE_WAIT)) {
-	        vlan_shaper[delay_pkt_to_shape.vlan].decr_shaper(logger::m_clk_count, delay_pkt_to_shape.num_pkt_bytes);
-              }
-            }
-            else {
-              if(knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-              }
-	      vlan_shaper[delay_pkt_to_shape.vlan].decr_shaper(logger::m_clk_count, delay_pkt_to_shape.num_pkt_bytes);
-            }
-          }
+	  vlan_shaper[delay_pkt_to_shape.vlan].decr_shaper(logger::m_clk_count, delay_pkt_to_shape.num_pkt_bytes);
 
           queue_delay_pkt(delay_pkt_to_shape, PUSH_TO_HEAP);
 
@@ -647,20 +599,12 @@ bool Scheduler::run_scheduler() {
   	    queue_delay_pkt(new_pkt, PUSH_TO_BOTH);
   	    logger::dv_debug(DV_INFO,"run_scheduler: New Pkt Delayed - pkt_id:%0d vlan:%0d, qnum:%0d pkt_bytes:%0d\n", new_pkt.pkt_id, new_pkt.vlan, new_pkt.qnum, new_pkt.num_pkt_bytes);
   
-            // Decrement shaper depending on configuration
-            if(knob_shaper_pre_decr) { 
-              if(knob_shaper_pre_decr_on_type) {
-  	        if((new_pkt.m_shaper_wait == SHAPER_VLAN_WAIT) ||
-                   (new_pkt.m_shaper_wait == SHAPER_VLAN_QUEUE_WAIT)) {
-                }
-  	        vlan_shaper[new_pkt.vlan].decr_shaper(logger::m_clk_count, new_pkt.num_pkt_bytes);
+            // Decrement vlan shaper now
+            if(knob_pre_decr) { 
+              if(knob_pre_decr_both) {
+	        queue_shaper[new_pkt.vlan][new_pkt.qnum].decr_shaper(logger::m_clk_count,new_pkt.num_pkt_bytes);
               }
-              else {
-                if(knob_shaper_pre_decr_both) {
-  	          queue_shaper[new_pkt.vlan][new_pkt.qnum].decr_shaper(logger::m_clk_count,new_pkt.num_pkt_bytes);
-                }
-  	        vlan_shaper[new_pkt.vlan].decr_shaper(logger::m_clk_count, new_pkt.num_pkt_bytes);
-              }
+	      vlan_shaper[new_pkt.vlan].decr_shaper(logger::m_clk_count, new_pkt.num_pkt_bytes);
             }
   
               // Update statistical data tracking

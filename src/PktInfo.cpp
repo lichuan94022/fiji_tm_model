@@ -73,21 +73,19 @@ void PktInfo::update_gather_status(double gather_bytes_per_clk){
 ///////////////////////////////////////////////////////////////////
 // Function: decr_num_bytes_to_transmit
 ///////////////////////////////////////////////////////////////////
-void PktInfo::decr_num_bytes_to_transmit(int num_bytes, double &total_output_bytes) {
-  double num_bytes_to_subtract;
+void PktInfo::decr_num_bytes_to_transmit(int num_bytes, double &num_bytes_transmitted) {
   
   if(!transmitted && (num_bytes_to_transmit == 0)) { // Transmit has not commenced
     num_bytes_to_transmit = num_pkt_bytes;
   }
 
-  num_bytes_to_subtract = num_bytes;
+  double num_bytes_to_subtract = num_bytes;
   if(num_bytes > num_bytes_to_transmit) {
     num_bytes_to_subtract = num_bytes_to_transmit;
   }
   num_bytes_to_transmit -= num_bytes_to_subtract;
+  num_bytes_transmitted = num_bytes_to_subtract; 
   logger::dv_debug(DV_DEBUG1, "decr_num_bytes_to_transmit: transmitting pkt_id %0d pkt_bytes:%0d num_bytes_to_transmit:%2f num_bytes_subtracted:%2f\n", pkt_id, num_pkt_bytes, num_bytes_to_transmit, num_bytes_to_subtract);
-
-  total_output_bytes += num_bytes_to_subtract;
 
   if(num_bytes_to_transmit == 0) { // Transmit is done
     transmitted = 1;

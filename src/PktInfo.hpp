@@ -94,7 +94,7 @@ public:
   //   to represent transmit of packet data to output.  When all bytes
   //   have been transmitted, set "transmitted" status bit.
   ////////////////////////////////////////////////////////////////////////
-  void decr_num_bytes_to_transmit(int num_bytes, double &total_output_bytes);
+  void decr_num_bytes_to_transmit(int num_bytes, double &num_bytes_transmitted);
 
   ////////////////////////////////////////////////////////////////////////
   // Function: is_gathered
@@ -126,8 +126,8 @@ public:
   // Function: print
   ////////////////////////////////////////////////////////////////////////
   void print() const {
-    logger::dv_debug(DV_INFO, "PktInfo: vlan=%d, qnum=%d, num_bytes=%d, wait_time_in_clks=%0d, send_time_in_clks=%d\n",
-	                      vlan, qnum, num_pkt_bytes, wait_time_in_clks,  send_time_in_clks);
+    logger::dv_debug(DV_DEBUG1, "PktInfo: vlan=%d, qnum=%d, pkt_id=%0d, num_bytes=%d, wait_time_in_clks=%0d, send_time_in_clks=%d\n",
+	                      vlan, qnum, pkt_id, num_pkt_bytes, wait_time_in_clks,  send_time_in_clks);
   }
 
 };

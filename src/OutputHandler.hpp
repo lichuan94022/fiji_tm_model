@@ -29,7 +29,7 @@
 
 #include<stdio.h>
 #include<stdlib.h>
-#include<deque>
+#include<vector>
 #include<string>
 #include<sstream>
 
@@ -43,6 +43,9 @@ class OutputHandler {
     int knob_gather_bytes_per_clk;
     double knob_oport_rate;
     int knob_num_ofifo_entries;
+    int knob_num_vlans;
+    int *knob_num_queues;
+    int knob_num_total_pkts;
 
     // Simulation Variables
     double clk_period;
@@ -53,13 +56,18 @@ class OutputHandler {
     int full_time;
     double total_output_bytes;
     double total_output_time;
+    double **total_output_bytes_per_queue;
+    double **last_clk_count_per_queue;
+    double **first_clk_count_per_queue;
+    int **init_clk_count_per_queue;
+    int num_rcvd_pkts;
 
     // Structural Variables
-    std::deque <PktInfo> output_fifo;
-    std::deque <PktInfo> **output_fifo_per_queue;
+    std::vector <PktInfo> output_fifo;
+    std::vector <PktInfo> **output_fifo_per_queue;
 
     // Operational Functions
-    void init(int num_vlans, int* num_queues, double new_clk_period, double oport_rate, int num_ofifo_entries, int gather_bytes_per_clk);
+    void init(int num_vlans, int* num_queues, int num_total_pkts, double new_clk_period, double oport_rate, int num_ofifo_entries, int gather_bytes_per_clk);
     void add_pkt(PktInfo &new_pkt); 
     void update_output_handler(double total_time); 
 
@@ -70,6 +78,7 @@ class OutputHandler {
     // Print Functions
     void print_fifo(double total_time); 
     void print_fifo_per_queue(int vlan, int qnum, double total_time); 
+    void print_stats(); 
 
     ~OutputHandler();
 };
