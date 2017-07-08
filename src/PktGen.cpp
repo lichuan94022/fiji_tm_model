@@ -54,10 +54,12 @@ PktGen::~PktGen() {
 // Function: init 
 ///////////////////////////////////////////////////////////////////////
 //void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler) {
-void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler) {
+void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, int **wait_queue_bytes, OutputHandler *ref_output_handler) {
+//void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler) {
 
   // Set pointers
   m_scheduler_pkt_wait_queue = wait_queue;
+  m_scheduler_pkt_wait_queue_bytes = wait_queue_bytes;
   output_handler = ref_output_handler;
 
   knob_num_vlans = num_vlans;
@@ -135,9 +137,17 @@ void PktGen::init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_q
     }
   }
 
+//  std::string rate_cntl_on_bytes_knob = "rate_cntl_on_bytes";
+//  knob_rate_cntl_on_bytes = sknobs_get_value((char *) rate_cntl_on_bytes_knob.c_str(), 0);
+//  logger::dv_debug(DV_INFO, "Rate control on bytes (instead of queue size): %0d\n", knob_rate_cntl_on_bytes);
+
   std::string max_wait_queue_size_knob = "max_wait_queue_size";
   knob_max_wait_queue_size = sknobs_get_value((char *) max_wait_queue_size_knob.c_str(), 32);
   logger::dv_debug(DV_INFO, "Max Queue Size is: %0d entries\n", knob_max_wait_queue_size);
+
+  std::string max_wait_queue_bytes_knob = "max_wait_queue_bytes";
+  knob_max_wait_queue_bytes = sknobs_get_value((char *) max_wait_queue_bytes_knob.c_str(), 4096);
+  logger::dv_debug(DV_INFO, "Max Queue bytes is: %0d B\n", knob_max_wait_queue_bytes);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -203,10 +213,18 @@ bool PktGen::select_new_pkt(PktInfo &new_pkt) {
     if(m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() > knob_max_wait_queue_size) {
         logger::dv_debug(DV_INFO, "  select_new_pkt: vlan%0d, queue%0d : queue(%0d>%0d) too long to generate\n", cur_vnum, cur_qnum[cur_vnum], m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size(), knob_max_wait_queue_size);
     }
+    if(m_scheduler_pkt_wait_queue_bytes[cur_vnum][cur_qnum[cur_vnum]] > knob_max_wait_queue_bytes) {
+        logger::dv_debug(DV_INFO, "  select_new_pkt: vlan%0d, queue%0d : queue(%0d>%0d) too large to generate\n", cur_vnum, cur_qnum[cur_vnum], m_scheduler_pkt_wait_queue_bytes[cur_vnum][cur_qnum[cur_vnum]], knob_max_wait_queue_bytes);
+    }
 */
 
     // Generate new pkt if current queue is below configured rate 
-    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] <= knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] && (m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() <= knob_max_wait_queue_size)) 
+    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] <= knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] && 
+       (((m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() <= knob_max_wait_queue_size)) && 
+        ((m_scheduler_pkt_wait_queue_bytes[cur_vnum][cur_qnum[cur_vnum]] <= knob_max_wait_queue_bytes)))) 
+//    if(cur_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] <= knob_iqueue_rate[cur_vnum][cur_qnum[cur_vnum]] && 
+//       (((m_scheduler_pkt_wait_queue[cur_vnum][cur_qnum[cur_vnum]].size() <= knob_max_wait_queue_size)) 
+//        )) 
     {
       new_pkt.reset(cur_pkt_id);
       cur_pkt_id++;
@@ -221,8 +239,8 @@ bool PktGen::select_new_pkt(PktInfo &new_pkt) {
       }      
       new_pkt.vlan = cur_vnum;
       new_pkt.qnum = cur_qnum[cur_vnum];
-      logger::dv_debug(DV_INFO, "select_new_pkt: vlan%0d, queue%0d: Generating new pkt -  pkt_id:%0d bytes:%0d\n", new_pkt.vlan, new_pkt.qnum, new_pkt.pkt_id, new_pkt.num_pkt_bytes);
       new_pkt.num_pkt_bytes += knob_min_pkt_size[cur_vnum][cur_qnum[cur_vnum]];
+      logger::dv_debug(DV_INFO, "select_new_pkt: vlan%0d, queue%0d: Generating new pkt -  pkt_id:%0d bytes:%0d\n", new_pkt.vlan, new_pkt.qnum, new_pkt.pkt_id, new_pkt.num_pkt_bytes);
 
       has_new_pkt = 1;
 

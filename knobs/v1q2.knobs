@@ -21,6 +21,7 @@
 
 # Max size of wait queue
 +*max_wait_queue_size=128
++*max_wait_queue_bytes=8192
 
 # Total number of packets
 +*npkt=15000
@@ -64,5 +65,8 @@
 
 # Shaper Decrement Type
 +*shaper_pre_decr=1
-+*shaper_pre_decr_both=0
++*shaper_pre_decr_both=1
 +*shaper_pre_decr_on_type=0
+
+# Shaper Queue Type
++*shaper_query_on_generate=1

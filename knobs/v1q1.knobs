@@ -49,5 +49,8 @@
 # Number of Output Fifo Entries
 +*num_ofifo_entries=8
 
-#Number of Bytes to Gather (per clk)
+# Number of Bytes to Gather (per clk)
 +*gather_bytes_per_clk=25
+
+# Maximum wait queue size
++*max_wait_queue_size=64

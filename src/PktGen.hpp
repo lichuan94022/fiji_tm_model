@@ -53,6 +53,7 @@ class PktGen {
   double knob_oport_rate;
   double **knob_iqueue_rate;
   int knob_max_wait_queue_size;
+  int knob_max_wait_queue_bytes;
 
   // Status Variables
   double **cur_iqueue_rate;
@@ -76,6 +77,7 @@ class PktGen {
 
     // Pointer to Scheduler Wait Queue
     std::vector <PktInfo> **m_scheduler_pkt_wait_queue;
+    int **m_scheduler_pkt_wait_queue_bytes;
 
     //////////////////////////////////////////////////////////////////////
     // Function: init 
@@ -85,13 +87,15 @@ class PktGen {
     // Arguments: num_vlans - number of vlans
     //            num_queues - number of queues (per vlan)
     //            wait_queue - pointer to scheduler wait_queue
+    //            wait_queue_bytes - pointer to scheduler wait_queue (# bytes in queue)
     //            ref_output_handler - pointer to output_handler
     //
     // Description: 
     //   Allocate dynamic arrays, and set pointers to wait queue and output_handler
     /////////////////////////////////////////////////////////////////////////
     //void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
-    void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
+    void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, int **wait_queue_bytes, OutputHandler *ref_output_handler);
+//    void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
 
 
     //////////////////////////////////////////////////////////////////////

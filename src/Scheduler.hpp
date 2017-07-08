@@ -42,6 +42,7 @@
 
 enum check_type_e {NEW_PKT_DELAYED=0, NO_NEW_PKT=1, NO_MORE_PKTS=2};
 enum delay_type_e {PUSH_TO_WAIT_QUEUE=0, PUSH_TO_HEAP=1, PUSH_TO_BOTH=2};
+enum query_type_e {HEAD_OF_QUEUE=0, NON_HEAD_OF_QUEUE=1};
 
 ///////////////////////////////////////////////////////////////////////
 //  Class: Scheduler
@@ -82,6 +83,7 @@ class Scheduler {
     int knob_shaper_pre_decr;
     int knob_shaper_pre_decr_both;
     int knob_shaper_pre_decr_on_type;
+    int knob_shaper_query_on_generate;
 
     // Simulation Variables
     double total_time_in_ns;
@@ -92,6 +94,7 @@ class Scheduler {
     Shaper **queue_shaper;
     Shaper *vlan_shaper;
     std::vector <PktInfo> **pkt_wait_queue;
+    int **pkt_wait_queue_bytes;
     int **pkt_wait_queue_max;
     std::priority_queue<PktInfo, std::vector<PktInfo> > pkt_wait_heap;
     OutputHandler output_handler;
@@ -153,6 +156,18 @@ class Scheduler {
     //        place on heap
     ////////////////////////////////////////////////////////////////////////////
     bool check_for_delayed_pkt_ready(check_type_e check_type); 
+	  
+   /////////////////////////////////////////////////////////
+   // Function: check_shapers_n_send_queue
+   // Return Value: None
+   // Arguments: pkt - pkt seeking shaping
+   //            queue_shaper_pass - 1=queue shaper allows transmit
+   //            vlan_shaper_pass - 1=vlan shaper allows transmit
+   //
+   // Description:
+   //   All shapers are queried and results passed back via funciton arguments.
+   ///////////////////////////////////////////////////////////
+   bool check_shapers_n_send_queue(PktInfo& pkt, query_type_e query_type); 
 
     ////////////////////////////////////////////////////////////////////////////
     // Function: run_scheduler

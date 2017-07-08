@@ -135,7 +135,7 @@ void OutputHandler::update_output_handler(double total_time) {
 
     // Pop output fifo if pkt has been completely transmitted
     if(output_fifo.size() && (output_fifo[0].is_transmitted())) {
-       logger::dv_debug(DV_DEBUG1, "update_output_handler: pop output fifo pkt_id: %0d pkt_size:%0d\n", output_fifo[0].pkt_id, output_fifo[0].num_pkt_bytes);
+       logger::dv_debug(DV_INFO, "update_output_handler: pop output fifo pkt_id: %0d pkt_size:%0d\n", output_fifo[0].pkt_id, output_fifo[0].num_pkt_bytes);
       act_out_pkt = output_fifo[0];
       output_fifo.erase(output_fifo.begin());
 //      output_fifo.pop_front();
