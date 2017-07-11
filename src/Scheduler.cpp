@@ -94,6 +94,7 @@ Scheduler::Scheduler(int argc, char* argv[]) {
     logger::dv_debug(DV_INFO,"refresh_interval: %0d\n", knob_vshaper_refresh_interval[vnum]);
     vlan_shaper[vnum].init_shaper(shaper_name, knob_vshaper_rate[vnum], clk_period, knob_vshaper_refresh_interval[vnum], knob_vshaper_max_burst_size[vnum]);
   }
+  
 }
 
 /////////////////////////////////////////////////////////
@@ -104,6 +105,7 @@ Scheduler::~Scheduler() {
   delete [] pkt_wait_queue;
   delete [] pkt_wait_queue_bytes;
   delete [] pkt_wait_queue_max;
+  delete []pkt_wait_heap;
 
   delete [] max_wait_time_in_clks_per_queue;
   delete [] total_wait_time_in_ns_per_queue;
@@ -170,6 +172,7 @@ void Scheduler::get_knobs(int argc, char* argv[]) {
   pkt_wait_queue = new std::vector<PktInfo>*[knob_num_vlans];
   pkt_wait_queue_bytes = new int*[knob_num_vlans];
   pkt_wait_queue_max = new int*[knob_num_vlans];
+  queue_info = new QueueInfo*[knob_num_vlans];
 
   total_wait_time_in_ns_per_queue = new double*[knob_num_vlans];
   num_pkts_imm_send_per_queue = new int*[knob_num_vlans];
@@ -199,6 +202,7 @@ void Scheduler::get_knobs(int argc, char* argv[]) {
     pkt_wait_queue[vnum] = new std::vector<PktInfo>[knob_num_queues[vnum]];
     pkt_wait_queue_bytes[vnum] = new int[knob_num_queues[vnum]];
     pkt_wait_queue_max[vnum] = new int [knob_num_queues[vnum]];
+    queue_info[vnum] = new QueueInfo[knob_num_queues[vnum]];
 
     total_wait_time_in_ns_per_queue[vnum] = new double[knob_num_queues[vnum]];
     num_pkts_imm_send_per_queue[vnum] = new int[knob_num_queues[vnum]];
@@ -222,6 +226,33 @@ void Scheduler::get_knobs(int argc, char* argv[]) {
       pkt_wait_queue_max[vnum][qnum] = 0;
     }
   }
+
+  for(int vnum=0; vnum<knob_num_vlans; vnum++) {
+    for(int qnum=0; qnum<knob_num_queues[vnum]; qnum++) {
+      std::stringstream vnum_str;
+      std::stringstream qnum_str;
+      vnum_str << vnum;
+      qnum_str << qnum;
+
+      std::string priority_knob = "vlan" + vnum_str.str() + "_qnum" + qnum_str.str()  + "_priority";
+      std::string weight_knob = "vlan" + vnum_str.str() + "_qnum" + qnum_str.str()  + "_weight";
+      std::string max_rate_knob = "vlan" + vnum_str.str() + "_qnum" + qnum_str.str()  + "_max_rate";
+      std::string min_rate_knob = "vlan" + vnum_str.str() + "_qnum" + qnum_str.str()  + "_min_rate";
+
+      queue_info[vnum][qnum].priority = sknobs_get_value((char*) priority_knob.c_str(), 0);
+      queue_info[vnum][qnum].weight = sknobs_get_value((char*) weight_knob.c_str(), 0);
+      queue_info[vnum][qnum].max_rate = sknobs_get_value((char*) max_rate_knob.c_str(), 100);
+      queue_info[vnum][qnum].min_rate = sknobs_get_value((char*) min_rate_knob.c_str(), 85);
+      queue_info[vnum][qnum].above_max = 0;
+      queue_info[vnum][qnum].below_min = 0;
+      queue_info[vnum][qnum].cur_rate = 0;
+    }
+  }
+
+  // Initialize Pkt Wait Heap
+  knob_num_priorities = sknobs_get_value((char*) "num_priorities", 8);
+  logger::dv_debug(DV_INFO,"Num Priorities is: %0d\n", knob_num_priorities);
+  pkt_wait_heap = new std::priority_queue<PktInfo, std::vector<PktInfo> >[knob_num_priorities];
 
   // Set number of packets
   knob_num_total_pkts = sknobs_get_value((char*) "npkt", 50);
@@ -334,130 +365,172 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
   PktInfo delay_pkt_to_shape;
   double wait_time_in_clks = 0;
 
-  if (!pkt_wait_heap.empty()) {
-    const PktInfo delayed_pkt = pkt_wait_heap.top();
-    PktInfo exp_delayed_pkt; // Expected pkt at top of heap (popped from wait_queue) 
+// Debug
+//  logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: print heap top\n");
+//  print_pkt_heap_top(); 
+//  for(int vnum=0; vnum<knob_num_vlans; vnum++) {
+//    for(int qnum=0; qnum<knob_num_queues[vnum]; qnum++) {
+//      print_pkt_wait_queue(vnum, qnum); 
+//    }
+//  }
 
-    // Delayed pkt ready
-    if (delayed_pkt.send_time_in_clks <= logger::m_clk_count) {            
-      logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: top element ready to send: pkt_id=%0d vlan=%d, qnum=%d, size=%d, send_time_in_clks=%d\n", delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum, delayed_pkt.num_pkt_bytes, delayed_pkt.send_time_in_clks);
-
-      // Increment counters
-      num_pkts_delayed_send++;
-      num_pkts_delayed_send_per_queue[delayed_pkt.vlan][delayed_pkt.qnum]++;
-
-      num_bytes_delayed_send+=delayed_pkt.num_pkt_bytes;
-      num_bytes_delayed_send_per_queue[delayed_pkt.vlan][delayed_pkt.qnum]+=delayed_pkt.num_pkt_bytes;
-
-      // Decrement shaper when delayed pkt sent
-      switch (delayed_pkt.m_shaper_wait) 
-      {
-	case SHAPER_QUEUE_WAIT:
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-  	      vlan_shaper[new_pkt.vlan].decr_shaper(logger::m_clk_count, new_pkt.num_pkt_bytes);
-	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-            }
-            else {
-              if(!knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  for(int i=0; i<knob_num_priorities; i++) {
+    if (!pkt_wait_heap[i].empty()) {
+      const PktInfo delayed_pkt = pkt_wait_heap[i].top();
+      PktInfo exp_delayed_pkt; // Expected pkt at top of heap (popped from wait_queue) 
+  
+      // Delayed pkt ready
+      if (delayed_pkt.send_time_in_clks <= logger::m_clk_count) {            
+        logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: top element ready to send: heap=%0d pkt_id=%0d vlan=%d, qnum=%d, size=%d, send_time_in_clks=%d\n", i, delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum, delayed_pkt.num_pkt_bytes, delayed_pkt.send_time_in_clks);
+  
+        // Increment counters
+        num_pkts_delayed_send++;
+        num_pkts_delayed_send_per_queue[delayed_pkt.vlan][delayed_pkt.qnum]++;
+  
+        num_bytes_delayed_send+=delayed_pkt.num_pkt_bytes;
+        num_bytes_delayed_send_per_queue[delayed_pkt.vlan][delayed_pkt.qnum]+=delayed_pkt.num_pkt_bytes;
+  
+        // Decrement shaper when delayed pkt sent
+        switch (delayed_pkt.m_shaper_wait) 
+        {
+  	case SHAPER_QUEUE_WAIT:
+            if(knob_shaper_pre_decr) { 
+              if(knob_shaper_pre_decr_on_type) {
+    	        vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+              }
+              else {
+                if(!knob_shaper_pre_decr_both) {
+  	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+                }
               }
             }
-          }
-	  break;
-	case SHAPER_VLAN_WAIT:
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-            }
             else {
-              if(!knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+    	      vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+            }
+  	  break;
+  	case SHAPER_VLAN_WAIT:
+            if(knob_shaper_pre_decr) { 
+              if(knob_shaper_pre_decr_on_type) {
+  	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+              }
+              else {
+                if(!knob_shaper_pre_decr_both) {
+  	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+                }
               }
             }
-          }
-//	  vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-	  break;
-	case SHAPER_VLAN_QUEUE_WAIT:
-          if(knob_shaper_pre_decr) { 
-            if(knob_shaper_pre_decr_on_type) {
-	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-            }
             else {
-              if(!knob_shaper_pre_decr_both) {
-	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+    	      vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+            }
+  //	  vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	  break;
+  	case SHAPER_VLAN_QUEUE_WAIT:
+            if(knob_shaper_pre_decr) { 
+              if(knob_shaper_pre_decr_on_type) {
+  	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+              }
+              else {
+                if(!knob_shaper_pre_decr_both) {
+  	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+                }
               }
             }
+            else {
+    	      vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+            }
+  //	  vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	  break;
+  	default:
+          if(!knob_shaper_query_on_generate) {
+  	    logger::dv_debug(DV_INFO,"ERROR: Invalid value for shaper_wait: %d\n", delayed_pkt.m_shaper_wait);
           }
-//	  vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
-	  break;
-	default:
-	  logger::dv_debug(DV_INFO,"ERROR: Invalid value for shaper_wait: %d\n", delayed_pkt.m_shaper_wait);
-      }
-
-      // Remove pkt from heap 
-      pkt_wait_heap.pop();
-      logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: popped pkt from heap pkt_id:%0d vlan:%0d qnum:%0d\n", delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum);
-
-      // Remove pkt from pkt_wait_queue 
-      if(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].size()) {
-        exp_delayed_pkt = pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].front();
-        if((delayed_pkt.vlan != exp_delayed_pkt.vlan) ||
-           (delayed_pkt.qnum != exp_delayed_pkt.qnum) ||
-           (delayed_pkt.pkt_id != exp_delayed_pkt.pkt_id)) {
-           logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: popped pkt from heap is not expected from wait queue\n");
-           logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: heap_pkt pkt_id:%0d vlan:%0d, qnum:%0d\n", delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum);
-           logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: exp_pkt pkt_id:%0d vlan:%0d, qnum:%0d\n", exp_delayed_pkt.pkt_id, exp_delayed_pkt.vlan, exp_delayed_pkt.qnum);
-          return 1;
-        } 
-        else {
-          logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: popped pkt from pkt_wait_queue pkt_id:%0d vlan:%0d qnum:%0d\n", exp_delayed_pkt.pkt_id, exp_delayed_pkt.vlan, exp_delayed_pkt.qnum);
-        }
-        pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].erase(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].begin());
-        pkt_wait_queue_bytes[delayed_pkt.vlan][delayed_pkt.qnum] -= delayed_pkt.num_pkt_bytes;
-//        pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].pop_front();
-      }
-      else {
-        logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: popped pkt from heap does not have corresponding pkt in pkt_wait_queue\n");
-        return 1;
-      }
-
-      // If not in query on generate mode and another pkt is waiting,
-      // check shaper to calculate wait time and add to heap
-      if(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].size() > 0) {
-        if(!knob_shaper_query_on_generate) {
-          logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: check shapers for delayed pkt \n");
-          delay_pkt_to_shape = pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].front();
-          if(check_shapers_n_send_queue(delay_pkt_to_shape, NON_HEAD_OF_QUEUE)) {
+          else {
+            if(knob_shaper_pre_decr) { 
+              if(knob_shaper_pre_decr_on_type) {
+  	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+              }
+              else {
+                if(!knob_shaper_pre_decr_both) {
+  	          queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+                }
+              }
+            }
+            else {
+    	      vlan_shaper[delayed_pkt.vlan].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	      queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+            }
+          }
+        } // end case
+  
+        // Remove pkt from heap 
+        pkt_wait_heap[i].pop();
+        logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: pop_to_heap pkt_id:%0d vlan:%0d qnum:%0d\n", delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum);
+  
+        // Remove pkt from pkt_wait_queue 
+        if(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].size()) {
+          exp_delayed_pkt = pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].front();
+          if((delayed_pkt.vlan != exp_delayed_pkt.vlan) ||
+             (delayed_pkt.qnum != exp_delayed_pkt.qnum) ||
+             (delayed_pkt.pkt_id != exp_delayed_pkt.pkt_id)) {
+             logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: popped pkt from heap is not expected from wait queue\n");
+             logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: heap_pkt pkt_id:%0d vlan:%0d, qnum:%0d\n", delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum);
+             logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: exp_pkt pkt_id:%0d vlan:%0d, qnum:%0d\n", exp_delayed_pkt.pkt_id, exp_delayed_pkt.vlan, exp_delayed_pkt.qnum);
             return 1;
+          } 
+          else {
+            logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: popped pkt from pkt_wait_queue pkt_id:%0d vlan:%0d qnum:%0d\n", exp_delayed_pkt.pkt_id, exp_delayed_pkt.vlan, exp_delayed_pkt.qnum);
           }
+          pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].erase(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].begin());
+          pkt_wait_queue_bytes[delayed_pkt.vlan][delayed_pkt.qnum] -= delayed_pkt.num_pkt_bytes;
+  //        pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].pop_front();
         }
         else {
-          PktInfo delay_pkt = pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].front();
-          queue_delay_pkt(delay_pkt, PUSH_TO_HEAP);
+          logger::dv_debug(DV_INFO, "ERROR: check_for_delayed_pkt_ready: popped pkt from heap does not have corresponding pkt in pkt_wait_queue\n");
+          return 1;
         }
-
-      } // end if(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].size() > 0) 
- 
-      // Send current pkt to output_handler
-      output_handler.add_pkt(exp_delayed_pkt);
-      logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: push new delayed pkt to output handler pkt_id:%0d vlan:%0d, qnum:%0d\n", exp_delayed_pkt.pkt_id, exp_delayed_pkt.vlan, exp_delayed_pkt.qnum);
-      output_handler.print_fifo(total_time_in_ns);
+  
+        // If not in query on generate mode and another pkt is waiting,
+        // check shaper to calculate wait time and add to heap
+        if(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].size() > 0) {
+          if(!knob_shaper_query_on_generate) {
+            logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: check shapers for delayed pkt \n");
+            delay_pkt_to_shape = pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].front();
+            if(check_shapers_n_send_queue(delay_pkt_to_shape, NON_HEAD_OF_QUEUE)) {
+              return 1;
+            }
+          }
+          else {
+            PktInfo delay_pkt = pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].front();
+            queue_delay_pkt(delay_pkt, PUSH_TO_HEAP);
+          }
+  
+        } // end if(pkt_wait_queue[delayed_pkt.vlan][delayed_pkt.qnum].size() > 0) 
+   
+        // Send current pkt to output_handler
+        output_handler.add_pkt(exp_delayed_pkt);
+        logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: push new delayed pkt to output handler pkt_id:%0d vlan:%0d, qnum:%0d\n", exp_delayed_pkt.pkt_id, exp_delayed_pkt.vlan, exp_delayed_pkt.qnum);
+        output_handler.print_fifo(total_time_in_ns);
+        break;
+      }
+      else { // no delayed pkt ready
+        if(check_type == NEW_PKT_DELAYED) {
+          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- new pkt delayed cycle\n", i);
+        }
+        else if(check_type == NO_NEW_PKT) {
+          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- no new pkt cycle\n", i);
+        }
+        else {
+          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- no more pkts cycle\n", i);
+        }
+      }
+    }  
+    else {
+      logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no pkts in heap[%0d]\n", i);
     }
-    else { // no delayed pkt ready
-      if(check_type == NEW_PKT_DELAYED) {
-        logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready - new pkt delayed cycle\n");
-      }
-      else if(check_type == NO_NEW_PKT) {
-        logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready - no new pkt cycle\n");
-      }
-      else {
-        logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready - no more pkts cycle\n");
-      }
-    }
-  }  
-  else {
-    logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: no more pkts in heap\n");
   }
   return 0;
 }
@@ -508,7 +581,28 @@ bool Scheduler::check_shapers_n_send_queue(PktInfo& pkt, query_type_e query_type
       vlan_shaper[pkt.vlan].decr_shaper(logger::m_clk_count, pkt.num_pkt_bytes);
     }
     else {
-      logger::dv_debug(DV_INFO,"check_shapers_n_send_queue: ERROR: unexpected condition - shapers all pass for non-head of queue\n");
+//      logger::dv_debug(DV_INFO,"check_shapers_n_send_queue: ERROR: unexpected condition - shapers all pass for non-head of queue\n");
+      pkt.wait_time_in_clks = 0;
+      pkt.send_time_in_clks = logger::m_clk_count;
+      pkt.m_shaper_wait = SHAPER_NO_WAIT;
+
+      queue_delay_pkt(pkt, PUSH_TO_WAIT_QUEUE);
+      logger::dv_debug(DV_INFO,"check_shapers_n_send_queue: New Non-Head Pkt Placed in Wait queue - pkt_id:%0d vlan:%0d, qnum:%0d pkt_bytes:%0d wait_clks=%0d send_clks=%0d\n", pkt.pkt_id, pkt.vlan, pkt.qnum, pkt.num_pkt_bytes, pkt.wait_time_in_clks, pkt.send_time_in_clks);
+
+      if(knob_shaper_pre_decr) { 
+        if(knob_shaper_pre_decr_on_type) {
+          if((pkt.m_shaper_wait == SHAPER_VLAN_WAIT) ||
+             (pkt.m_shaper_wait == SHAPER_VLAN_QUEUE_WAIT)) {
+          }
+          vlan_shaper[pkt.vlan].decr_shaper(logger::m_clk_count, pkt.num_pkt_bytes);
+        }
+        else {
+          if(knob_shaper_pre_decr_both) {
+            queue_shaper[pkt.vlan][pkt.qnum].decr_shaper(logger::m_clk_count,pkt.num_pkt_bytes);
+          }
+          vlan_shaper[pkt.vlan].decr_shaper(logger::m_clk_count, pkt.num_pkt_bytes);
+        }
+      }
     }
   }
   else { // Pkt delayed
@@ -599,11 +693,25 @@ bool Scheduler::check_shapers_n_send_queue(PktInfo& pkt, query_type_e query_type
 }
 
 /////////////////////////////////////////////////////////
+// Function: is_pkt_wait_heap_empty
+/////////////////////////////////////////////////////////
+bool Scheduler::is_pkt_wait_heap_empty() { 
+  bool empty = 1;
+
+  for(int i=0; i<knob_num_priorities; i++) {
+    if(!pkt_wait_heap[i].empty()) { 
+      empty = 0;
+    }
+  }
+  return empty;
+}
+
+/////////////////////////////////////////////////////////
 // Function: run_scheduler
 /////////////////////////////////////////////////////////
 bool Scheduler::run_scheduler() {
   while(((num_pkts_imm_send+num_pkts_delayed_send) < knob_num_total_pkts) ||
-        !pkt_wait_heap.empty() ||
+        !is_pkt_wait_heap_empty() ||
         !output_handler.is_empty()) {
 
     logger::m_clk_count++;
@@ -625,18 +733,19 @@ bool Scheduler::run_scheduler() {
     for(int vnum=0; vnum<knob_num_vlans; vnum++) {
       for(int qnum=0; qnum<knob_num_queues[vnum]; qnum++) {
         if(pkt_wait_queue[vnum][qnum].size() > 0) {
-          print_pkt_wait_queue(vnum, qnum);
+          logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d] = %0d\n", vnum, qnum, pkt_wait_queue[vnum][qnum].size());
+//          print_pkt_wait_queue(vnum, qnum);
         }
         else {
-          logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d] empty\n", vnum, qnum);
+          logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d] = 0\n", vnum, qnum);
         }
       }
     }
-    if(!pkt_wait_heap.empty()) {      
-      print_pkt_heap_top();
+    if(!is_pkt_wait_heap_empty()) {      
+//      print_pkt_heap_top();
     }
     else {
-      logger::dv_debug(DV_DEBUG1, "pkt_wait_heap empty\n");
+      logger::dv_debug(DV_DEBUG1, "pkt_wait_heap = 0\n");
     }
 
     output_handler.print_fifo(total_time_in_ns);
@@ -738,8 +847,9 @@ void Scheduler::queue_delay_pkt(PktInfo& pkt, delay_type_e delay_type) {
   }
 
   if((delay_type == PUSH_TO_HEAP) || (delay_type == PUSH_TO_BOTH)) {
-    pkt_wait_heap.push(pkt);
-    logger::dv_debug(DV_DEBUG1, "queue_delay_pkt: push_to_heap pkt_id:%0d vlan:%0d, qnum:%0d pkt_size:%0d send_time_in_clks:%0d\n", pkt.pkt_id, pkt.vlan, pkt.qnum, pkt.num_pkt_bytes, pkt.send_time_in_clks);
+    int pkt_queue_priority = queue_info[pkt.vlan][pkt.qnum].priority;
+    pkt_wait_heap[pkt_queue_priority].push(pkt);
+    logger::dv_debug(DV_INFO, "queue_delay_pkt: push_to_heap[%0d] heap_size:%0d fifo_size:%0d pkt_id:%0d vlan:%0d, qnum:%0d pkt_size:%0d send_time_in_clks:%0d\n", pkt_queue_priority, pkt_wait_heap[pkt_queue_priority].size(), pkt_wait_queue[pkt.vlan][pkt.qnum].size(), pkt.pkt_id, pkt.vlan, pkt.qnum, pkt.num_pkt_bytes, pkt.send_time_in_clks);
   }
 
 //  pkt.print();
@@ -869,13 +979,15 @@ void Scheduler::post_run_checks() {
   logger::dv_debug(DV_INFO, "Start post run checks\n");
 
   if(!knob_stop_on_rcvd_pkts) {
-    if(!pkt_wait_heap.empty()) {  
+    if(!is_pkt_wait_heap_empty()) {  
       logger::dv_debug(DV_INFO, "ERROR: Pkt heap not empty!\n");
     }
-    while (!pkt_wait_heap.empty()) {
-      const PktInfo& pkt = pkt_wait_heap.top();
-      pkt.print();
-      pkt_wait_heap.pop();
+    for(int i=0; i<knob_num_priorities; i++) {
+      while (!pkt_wait_heap[i].empty()) {
+        const PktInfo& pkt = pkt_wait_heap[i].top();
+        pkt.print();
+        pkt_wait_heap[i].pop();
+      }
     }
     for(int vnum=0; vnum<knob_num_vlans; vnum++) {
       for(int qnum=0; qnum<knob_num_queues[vnum]; qnum++) {
@@ -894,12 +1006,15 @@ void Scheduler::post_run_checks() {
 // Function: print_pkt_wait_queue
 /////////////////////////////////////////////////////////
 void Scheduler::print_pkt_wait_queue(int vlan, int qnum) {
-  logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d]\n", vlan, qnum);
+  logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d]\n", vlan, qnum);
   for(int i=0; i<pkt_wait_queue[vlan][qnum].size(); i++) {
-    logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d][%0d].pkt_id=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].pkt_id);
-    logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d][%0d].num_pkt_bytes=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].num_pkt_bytes);
-    logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d][%0d].wait_time_in_clks=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].wait_time_in_clks);
-    logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d][%0d].send_time_in_clks=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].send_time_in_clks);
+    logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d][%0d].pkt_id=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].pkt_id);
+    logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d][%0d].num_pkt_bytes=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].num_pkt_bytes);
+    logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d][%0d].wait_time_in_clks=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].wait_time_in_clks);
+    logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d][%0d].send_time_in_clks=%0d\n", vlan, qnum, i, pkt_wait_queue[vlan][qnum][i].send_time_in_clks);
+  }
+  if(pkt_wait_queue[vlan][qnum].size() == 0) {
+    logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d] is empty\n", vlan, qnum);
   }
 }
 
@@ -907,6 +1022,14 @@ void Scheduler::print_pkt_wait_queue(int vlan, int qnum) {
 // Function: print_pkt_heap_top
 /////////////////////////////////////////////////////////
 void Scheduler::print_pkt_heap_top() {
-  const PktInfo& pkt = pkt_wait_heap.top();
-  logger::dv_debug(DV_DEBUG1, "pkt_heap_top pkt_id:%0d vlan:%0d qnum:%0d\n", pkt.pkt_id, pkt.vlan, pkt.qnum);
+  for(int i=0; i<knob_num_priorities; i++) {
+    if(!pkt_wait_heap[i].empty()) { 
+      const PktInfo& pkt = pkt_wait_heap[i].top();
+//      logger::dv_debug(DV_INFO, "print_pkt_heap_top: heap[%0d] pkt_id:%0d vlan:%0d qnum:%0d\n", i, pkt.pkt_id, pkt.vlan, pkt.qnum);
+      logger::dv_debug(DV_INFO, "print_pkt_heap_top: heap[%0d] size=%0d\n", i, pkt_wait_heap[i].size());
+    }
+    else {
+      logger::dv_debug(DV_INFO, "print_pkt_heap_top: heap[%0d] is empty\n", i);
+    }
+  }
 }

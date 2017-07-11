@@ -24,13 +24,37 @@
 +*vlan0_qnum*_maxsize=512
 
 # Total number of packets
-+*npkt=15000
++*npkt=30000
 
 # # Stop on rcvd pkt (rather than all pkts draining)
 +*stop_on_rcvd_pkt=1
 
 # Total number of packets
 +*nrcvd_pkt=7500
+
+# Queue Priorities
++*vlan0_qnum0_priority=0
++*vlan0_qnum1_priority=0
++*vlan0_qnum2_priority=0
++*vlan0_qnum3_priority=0
+
+# Queue Weight
++*vlan0_qnum0_weight=1
++*vlan0_qnum1_weight=1
++*vlan0_qnum2_weight=1
++*vlan0_qnum3_weight=1
+
+# Queue Max Rate
++*vlan0_qnum0_max_rate=100
++*vlan0_qnum1_max_rate=100
++*vlan0_qnum2_max_rate=100
++*vlan0_qnum3_max_rate=100
+
+# Queue Max Rate
++*vlan0_qnum0_min_rate=85
++*vlan0_qnum1_min_rate=85
++*vlan0_qnum2_min_rate=85
++*vlan0_qnum3_min_rate=85
 
 # Input Port per vlan/queue (in Gbps)
 +*vlan*_irate=100
@@ -66,7 +90,7 @@
 +*gather_bytes_per_clk=25
 
 # Shaper Decrement Type
-+*shaper_pre_decr=1
++*shaper_pre_decr=0
 +*shaper_pre_decr_both=1
 +*shaper_pre_decr_on_type=0
 

@@ -195,22 +195,22 @@ bool Shaper::check_shaper(int unsigned cur_clk_count, int num_pkt_bytes, double 
     double exp_rate = total_added_bytes * 8/cur_clk_count;
     double act_rate = total_sent_bytes * 8/cur_clk_count;
 /*
-    logger::dv_debug(DV_DEBUG1,"check_shaper: %s: total_added_bytes:%2f\n", name.c_str(), total_added_bytes);
-    logger::dv_debug(DV_DEBUG1,"check_shaper: %s: total_sent_bytes:%02fn", name.c_str(), total_sent_bytes);
+    logger::dv_debug(DV_INFO,"check_shaper: %s: total_added_bytes:%2f\n", name.c_str(), total_added_bytes);
+    logger::dv_debug(DV_INFO,"check_shaper: %s: total_sent_bytes:%02fn", name.c_str(), total_sent_bytes);
     if(sign) {
-      logger::dv_debug(DV_DEBUG1,"check_shaper: %s: cur_num_tokens:-%2f\n", name.c_str(), cur_num_tokens);
+      logger::dv_debug(DV_INFO,"check_shaper: %s: cur_num_tokens:-%2f\n", name.c_str(), cur_num_tokens);
       if(total_sent_bytes-total_added_bytes != cur_num_tokens) {
-        logger::dv_debug(DV_DEBUG1,"check_shaper: %s: ERROR cur_num_tokens(-%2f) != total_sent_bytes(%2f) = total_added_bytes(%2f)\n", name.c_str(), cur_num_tokens, total_sent_bytes, total_added_bytes);
+        logger::dv_debug(DV_INFO,"check_shaper: %s: ERROR cur_num_tokens(-%2f) != total_sent_bytes(%2f) = total_added_bytes(%2f)\n", name.c_str(), cur_num_tokens, total_sent_bytes, total_added_bytes);
       }
     }
     else {
-      logger::dv_debug(DV_DEBUG1,"check_shaper: %s: cur_num_tokens:%2f\n", name.c_str(), cur_num_tokens);
+      logger::dv_debug(DV_INFO,"check_shaper: %s: cur_num_tokens:%2f\n", name.c_str(), cur_num_tokens);
       if(total_added_bytes - total_sent_bytes != cur_num_tokens) {
-        logger::dv_debug(DV_DEBUG1,"check_shaper: %s: ERROR cur_num_tokens(%2f) != total_added_bytes(%2f) - total_sent_bytes(%2f) \n", name.c_str(), cur_num_tokens, total_added_bytes, total_sent_bytes);
+        logger::dv_debug(DV_INFO,"check_shaper: %s: ERROR cur_num_tokens(%2f) != total_added_bytes(%2f) - total_sent_bytes(%2f) \n", name.c_str(), cur_num_tokens, total_added_bytes, total_sent_bytes);
       }
     }
-    logger::dv_debug(DV_DEBUG1,"check_shaper: %s: exp_rate:%2f\n", name.c_str(), exp_rate);
-    logger::dv_debug(DV_DEBUG1,"check_shaper: %s: act_rate:%2f\n", name.c_str(), act_rate);
+    logger::dv_debug(DV_INFO,"check_shaper: %s: exp_rate:%2f\n", name.c_str(), exp_rate);
+    logger::dv_debug(DV_INFO,"check_shaper: %s: act_rate:%2f\n", name.c_str(), act_rate);
 */
     return 1; // immediate send pkt
   }
@@ -242,8 +242,8 @@ bool Shaper::check_shaper(int unsigned cur_clk_count, int num_pkt_bytes, double 
       logger::dv_debug(DV_INFO, "check_shaper: %s: delay %0d bytes, not_decremented cur_num_tokens:%2f\n", name.c_str(), num_pkt_bytes, cur_num_tokens);
     }
     logger::dv_debug(DV_INFO, "check_shaper: %s: wait_clks: %2f clks\n", name.c_str(), wait_clks);
-//    logger::dv_debug(DV_DEBUG1, "check_shaper: %s: frac_num_tokens_needed:%2f \n", name.c_str(), num_tokens_needed/bytes_per_refresh);
-//    logger::dv_debug(DV_DEBUG1, "check_shaper: %s: clks_before_refresh: %0d num_tokens_needed:%0d bytes_per_refresh:%2f\n", name.c_str(), clks_before_refresh, num_tokens_needed, bytes_per_refresh);
+//    logger::dv_debug(DV_INFO, "check_shaper: %s: frac_num_tokens_needed:%2f \n", name.c_str(), num_tokens_needed/bytes_per_refresh);
+//    logger::dv_debug(DV_INFO, "check_shaper: %s: clks_before_refresh: %0d num_tokens_needed:%0d bytes_per_refresh:%2f\n", name.c_str(), clks_before_refresh, num_tokens_needed, bytes_per_refresh);
 
     return 0; // delayed pkt
   }
@@ -273,23 +273,23 @@ void Shaper::decr_shaper(int unsigned cur_clk_count, int num_pkt_bytes) {
     }
   }
   if(sign == 1) {
-    logger::dv_debug(DV_INFO,"  decr_shaper: %s: num_pkt_bytes decr:%0d cur_num_tokens:-%2f\n", name.c_str(), num_pkt_bytes, cur_num_tokens);
+    logger::dv_debug(DV_DEBUG1,"  decr_shaper: %s: num_pkt_bytes decr:%0d cur_num_tokens:-%2f\n", name.c_str(), num_pkt_bytes, cur_num_tokens);
   }
   else {
-    logger::dv_debug(DV_INFO,"  decr_shaper: %s: num_pkt_bytes decr:%0d cur_num_tokens:%2f\n", name.c_str(), num_pkt_bytes, cur_num_tokens);
+    logger::dv_debug(DV_DEBUG1,"  decr_shaper: %s: num_pkt_bytes decr:%0d cur_num_tokens:%2f\n", name.c_str(), num_pkt_bytes, cur_num_tokens);
   }
   double exp_rate = total_added_bytes * 8 /cur_clk_count;
   double act_rate = total_sent_bytes * 8 /cur_clk_count;
   logger::dv_debug(DV_DEBUG1,"  decr_shaper: %s: total_added_bytes:%2f\n", name.c_str(), total_added_bytes);
   logger::dv_debug(DV_DEBUG1,"  decr_shaper: %s: total_sent_bytes:%2f\n", name.c_str(), total_sent_bytes);
   if(sign) {
-    logger::dv_debug(DV_DEBUG1,"  decr_shaper: %s: cur_num_tokens:-%2f\n", name.c_str(), cur_num_tokens);
+    logger::dv_debug(DV_INFO,"  decr_shaper: %s: cur_num_tokens:-%2f\n", name.c_str(), cur_num_tokens);
     if(total_sent_bytes-total_added_bytes != cur_num_tokens) {
       logger::dv_debug(DV_INFO,"  decr_shaper: %s: ERROR cur_num_tokens(-%2f) != total_sent_bytes(%2f) = total_added_bytes(%2f)\n", name.c_str(), cur_num_tokens, total_sent_bytes, total_added_bytes);
     }
   }
   else {
-    logger::dv_debug(DV_DEBUG1,"  decr_shaper: %s: cur_num_tokens:%2f\n", name.c_str(), cur_num_tokens);
+    logger::dv_debug(DV_INFO,"  decr_shaper: %s: cur_num_tokens:%2f\n", name.c_str(), cur_num_tokens);
     if(total_added_bytes - total_sent_bytes != cur_num_tokens) {
       logger::dv_debug(DV_INFO,"  decr_shaper: %s: ERROR cur_num_tokens(%2f) != total_added_bytes(%2f) - total_sent_bytes(%2f) \n", name.c_str(), cur_num_tokens, total_added_bytes, total_sent_bytes);
     }

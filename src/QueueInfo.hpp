@@ -43,15 +43,16 @@
 //////////////////////////////////
 class QueueInfo {
 
-  // Queue Variables
-  double max_rate;
-  double min_rate;
 
 public:
 
   // Queue Variables
   int priority;
   int weight;
+
+  // Queue Variables
+  double max_rate;
+  double min_rate;
 
   // Queue Status Variables
   int above_max;

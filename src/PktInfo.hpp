@@ -28,7 +28,7 @@
 
 #include "logger.hpp"
 
-typedef enum {SHAPER_NO_WAIT, SHAPER_VLAN_WAIT, SHAPER_QUEUE_WAIT, SHAPER_VLAN_QUEUE_WAIT} pkt_wait_e;
+typedef enum {SHAPER_NO_WAIT=0, SHAPER_VLAN_WAIT=1, SHAPER_QUEUE_WAIT=2, SHAPER_VLAN_QUEUE_WAIT=3} pkt_wait_e;
 
 
 //////////////////////////////////

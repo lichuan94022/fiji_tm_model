@@ -37,6 +37,7 @@
 
 #include "Shaper.hpp"
 #include "PktGen.hpp"
+#include "QueueInfo.hpp"
 #include "OutputHandler.hpp"
 #include "sknobs.h"
 
@@ -73,6 +74,7 @@ class Scheduler {
     int knob_num_total_pkts;
     int *knob_num_queues;
     int knob_num_vlans;
+    int knob_num_priorities;
     int knob_stop_on_rcvd_pkts;
     int knob_num_rcvd_pkts;
 
@@ -96,7 +98,8 @@ class Scheduler {
     std::vector <PktInfo> **pkt_wait_queue;
     int **pkt_wait_queue_bytes;
     int **pkt_wait_queue_max;
-    std::priority_queue<PktInfo, std::vector<PktInfo> > pkt_wait_heap;
+    QueueInfo **queue_info;
+    std::priority_queue<PktInfo, std::vector<PktInfo> > *pkt_wait_heap;
     OutputHandler output_handler;
     PktInfo new_pkt;
 
@@ -169,102 +172,112 @@ class Scheduler {
    ///////////////////////////////////////////////////////////
    bool check_shapers_n_send_queue(PktInfo& pkt, query_type_e query_type); 
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Function: run_scheduler
-    //
-    // Return Value: 0 = simulation error
-    //               1 = simulation error
-    // Arguments: None
-    //
-    // Description: 
-    //   While not all the packets have been sent, there are still delayed packets
-    //   or packets in the output handler,
-    //     if the output handler is not full
-    //       if a new packet needs to be generated,
-    //          if associated wait_queue is > 0, 
-    //            queue pkt in wait_queue
-    //          else    
-    //            check shapers
-    //              if both pass, immediate send
-    //              if one pass, delay with shaper wait time
-    //              if no pass, delay with > shaper wait time
-    //            if pkt delayed, check wait heap for delayed pkt that is ready to send
-    //       else
-    //         check wait heap for delayed pkt that is ready to send
-    //           if pkt ready
-    //             if associated wait queue has another pkt
-    //               check shapers and determine wait time
-    //     update shaper
-    //     update output_handler
-    //     update stats
-    //          
-    ////////////////////////////////////////////////////////////////////////////
-    bool run_scheduler(); 
+   /////////////////////////////////////////////////////////
+   // Function: is_pkt_wait_heap_empty
+   // Return Value: None
+   // Arguments: None
+   //
+   // Description:
+   //   Determine whether all heaps are empty
+   ///////////////////////////////////////////////////////////
+   bool is_pkt_wait_heap_empty();
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Function: queue_delay_pkt
-    //
-    // Return Value: None
-    //
-    // Arguments: pkt - pkt to queue
-    //            delay_type  
-    //                PUSH_TO_WAIT_QUEUE - Push only to wait queue (when queue>0)
-    //                PUSH_TO_HEAP - Push only to heap (when queue head is popped
-    //                                 and queue>0)
-    //                PUSH_TO_BOTH - Push to wait queue and heap (when queue==0)
-    //
-    // Description: 
-    //   Push pkt to wait queue and/or heap dependent on delay_type argument.   
-    ////////////////////////////////////////////////////////////////////////////
-    void queue_delay_pkt(PktInfo& pkt, delay_type_e delay_type);
+   ////////////////////////////////////////////////////////////////////////////
+   // Function: run_scheduler
+   //
+   // Return Value: 0 = simulation error
+   //               1 = simulation error
+   // Arguments: None
+   //
+   // Description: 
+   //   While not all the packets have been sent, there are still delayed packets
+   //   or packets in the output handler,
+   //     if the output handler is not full
+   //       if a new packet needs to be generated,
+   //          if associated wait_queue is > 0, 
+   //            queue pkt in wait_queue
+   //          else    
+   //            check shapers
+   //              if both pass, immediate send
+   //              if one pass, delay with shaper wait time
+   //              if no pass, delay with > shaper wait time
+   //            if pkt delayed, check wait heap for delayed pkt that is ready to send
+   //       else
+   //         check wait heap for delayed pkt that is ready to send
+   //           if pkt ready
+   //             if associated wait queue has another pkt
+   //               check shapers and determine wait time
+   //     update shaper
+   //     update output_handler
+   //     update stats
+   //          
+   ////////////////////////////////////////////////////////////////////////////
+   bool run_scheduler(); 
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Function: print_pkt_heap_top
-    //
-    // Return Value: none
-    //
-    // Arguments: none
-    //  
-    // Description: Print contents of top of pkt_heap
-    ////////////////////////////////////////////////////////////////////////////
-    void report_stats(); 
+   ////////////////////////////////////////////////////////////////////////////
+   // Function: queue_delay_pkt
+   //
+   // Return Value: None
+   //
+   // Arguments: pkt - pkt to queue
+   //            delay_type  
+   //                PUSH_TO_WAIT_QUEUE - Push only to wait queue (when queue>0)
+   //                PUSH_TO_HEAP - Push only to heap (when queue head is popped
+   //                                 and queue>0)
+   //                PUSH_TO_BOTH - Push to wait queue and heap (when queue==0)
+   //
+   // Description: 
+   //   Push pkt to wait queue and/or heap dependent on delay_type argument.   
+   ////////////////////////////////////////////////////////////////////////////
+   void queue_delay_pkt(PktInfo& pkt, delay_type_e delay_type);
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Function: post_run_checks
-    //
-    // Return Value: none
-    //
-    // Arguments: none
-    //  
-    // Description: Print out any remaining pkts in data structures (error behavior)
-    ////////////////////////////////////////////////////////////////////////////
-    void post_run_checks();
+   ////////////////////////////////////////////////////////////////////////////
+   // Function: print_pkt_heap_top
+   //
+   // Return Value: none
+   //
+   // Arguments: none
+   //  
+   // Description: Print contents of top of pkt_heap
+   ////////////////////////////////////////////////////////////////////////////
+   void report_stats(); 
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Function: print_pkt_wait_queue
-    //
-    // Return Value: none
-    //
-    // Arguments: vlan 
-    //            qnum
-    //  
-    // Description: Print contents of vlan/queue pkt_wait_queue
-    ////////////////////////////////////////////////////////////////////////////
-    void print_pkt_wait_queue(int vlan, int qnum);
+   ////////////////////////////////////////////////////////////////////////////
+   // Function: post_run_checks
+   //
+   // Return Value: none
+   //
+   // Arguments: none
+   //  
+   // Description: Print out any remaining pkts in data structures (error behavior)
+   ////////////////////////////////////////////////////////////////////////////
+   void post_run_checks();
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Function: print_pkt_heap_top
-    //
-    // Return Value: none
-    //
-    // Arguments: none
-    //  
-    // Description: Print contents of top of pkt_heap
-    ////////////////////////////////////////////////////////////////////////////
-    void print_pkt_heap_top();
+   ////////////////////////////////////////////////////////////////////////////
+   // Function: print_pkt_wait_queue
+   //
+   // Return Value: none
+   //
+   // Arguments: vlan 
+   //            qnum
+   //  
+   // Description: Print contents of vlan/queue pkt_wait_queue
+   ////////////////////////////////////////////////////////////////////////////
+   void print_pkt_wait_queue(int vlan, int qnum);
 
-    Scheduler(int, char*[]); 
-    ~Scheduler();
+   ////////////////////////////////////////////////////////////////////////////
+   // Function: print_pkt_heap_top
+   //
+   // Return Value: none
+   //
+   // Arguments: none
+   //  
+   // Description: Print contents of top of pkt_heap
+   ////////////////////////////////////////////////////////////////////////////
+   void print_pkt_heap_top();
+
+   Scheduler(int, char*[]); 
+   ~Scheduler();
 
 };
 
