@@ -52,7 +52,7 @@ Scheduler::Scheduler(int argc, char* argv[]) {
   get_knobs(argc, argv);
 
   // Initialize Packet Generator
-  pkt_gen.init(knob_num_vlans, knob_num_queues, pkt_wait_queue, pkt_wait_queue_bytes, &output_handler);
+  pkt_gen.init(knob_num_vlans, knob_num_queues, knob_num_priorities, pkt_wait_queue, pkt_wait_queue_bytes, queue_info, &output_handler);
 //  pkt_gen.init(knob_num_vlans, knob_num_queues, pkt_wait_queue, &output_handler);
 //  pkt_gen.init(knob_num_vlans, knob_num_queues, &output_handler);
 
@@ -246,6 +246,11 @@ void Scheduler::get_knobs(int argc, char* argv[]) {
       queue_info[vnum][qnum].above_max = 0;
       queue_info[vnum][qnum].below_min = 0;
       queue_info[vnum][qnum].cur_rate = 0;
+
+      logger::dv_debug(DV_INFO,"Vlan:%0d Queue:%0d Priority: %0d\n", vnum, qnum, queue_info[vnum][qnum].priority);
+      logger::dv_debug(DV_INFO,"Vlan:%0d Queue:%0d Weight: %0d\n", vnum, qnum, queue_info[vnum][qnum].weight);
+      logger::dv_debug(DV_INFO,"Vlan:%0d Queue:%0d Max Rate: %2f\n", vnum, qnum, queue_info[vnum][qnum].max_rate);
+      logger::dv_debug(DV_INFO,"Vlan:%0d Queue:%0d Min Rate: %2f\n", vnum, qnum, queue_info[vnum][qnum].min_rate);
     }
   }
 
@@ -374,14 +379,14 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
 //    }
 //  }
 
-  for(int i=0; i<knob_num_priorities; i++) {
-    if (!pkt_wait_heap[i].empty()) {
-      const PktInfo delayed_pkt = pkt_wait_heap[i].top();
+  for(int priority=knob_num_priorities-1; priority>=0; priority--) {
+    if (!pkt_wait_heap[priority].empty()) {
+      const PktInfo delayed_pkt = pkt_wait_heap[priority].top();
       PktInfo exp_delayed_pkt; // Expected pkt at top of heap (popped from wait_queue) 
   
       // Delayed pkt ready
       if (delayed_pkt.send_time_in_clks <= logger::m_clk_count) {            
-        logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: top element ready to send: heap=%0d pkt_id=%0d vlan=%d, qnum=%d, size=%d, send_time_in_clks=%d\n", i, delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum, delayed_pkt.num_pkt_bytes, delayed_pkt.send_time_in_clks);
+        logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: top element ready to send: heap=%0d pkt_id=%0d vlan=%d, qnum=%d, size=%d, send_time_in_clks=%d\n", priority, delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum, delayed_pkt.num_pkt_bytes, delayed_pkt.send_time_in_clks);
   
         // Increment counters
         num_pkts_delayed_send++;
@@ -401,7 +406,7 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
               }
               else {
                 if(!knob_shaper_pre_decr_both) {
-  	        queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
+  	          queue_shaper[delayed_pkt.vlan][delayed_pkt.qnum].decr_shaper(logger::m_clk_count, delayed_pkt.num_pkt_bytes);
                 }
               }
             }
@@ -467,7 +472,7 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
         } // end case
   
         // Remove pkt from heap 
-        pkt_wait_heap[i].pop();
+        pkt_wait_heap[priority].pop();
         logger::dv_debug(DV_INFO, "check_for_delayed_pkt_ready: pop_to_heap pkt_id:%0d vlan:%0d qnum:%0d\n", delayed_pkt.pkt_id, delayed_pkt.vlan, delayed_pkt.qnum);
   
         // Remove pkt from pkt_wait_queue 
@@ -518,18 +523,18 @@ bool Scheduler::check_for_delayed_pkt_ready(check_type_e check_type) {
       }
       else { // no delayed pkt ready
         if(check_type == NEW_PKT_DELAYED) {
-          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- new pkt delayed cycle\n", i);
+          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- new pkt delayed cycle\n", priority);
         }
         else if(check_type == NO_NEW_PKT) {
-          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- no new pkt cycle\n", i);
+          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- no new pkt cycle\n", priority);
         }
         else {
-          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- no more pkts cycle\n", i);
+          logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no delayed pkt ready for heap[%0d]- no more pkts cycle\n", priority);
         }
       }
     }  
     else {
-      logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no pkts in heap[%0d]\n", i);
+      logger::dv_debug(DV_DEBUG1, "check_for_delayed_pkt_ready: no pkts in heap[%0d]\n", priority);
     }
   }
   return 0;
@@ -717,9 +722,9 @@ bool Scheduler::run_scheduler() {
     logger::m_clk_count++;
     
     // Print scheduling snapshot
-    logger::dv_debug(DV_DEBUG1, "\n");
-    logger::dv_debug(DV_DEBUG1, "-- Simulation Status Begin --\n");
-    logger::dv_debug(DV_DEBUG1, "run_scheduler: num_pkts_sent by pktgen: %0d\n", pkt_gen.num_pkts_sent);
+    logger::dv_debug(DV_INFO, "\n");
+    logger::dv_debug(DV_INFO, "-- Simulation Status Begin --\n");
+    logger::dv_debug(DV_INFO, "run_scheduler: num_pkts_sent by pktgen: %0d\n", pkt_gen.num_pkts_sent);
     logger::dv_debug(DV_DEBUG1, "run_scheduler: num_bytes_sent by pktgen: %0d\n", pkt_gen.num_bytes_sent);
     logger::dv_debug(DV_DEBUG1, "run_scheduler: num_pkts sent (immediate): %0d\n", num_pkts_imm_send);
     logger::dv_debug(DV_DEBUG1, "run_scheduler: num_pkts sent (delayed): %0d\n", num_pkts_delayed_send);
@@ -733,24 +738,27 @@ bool Scheduler::run_scheduler() {
     for(int vnum=0; vnum<knob_num_vlans; vnum++) {
       for(int qnum=0; qnum<knob_num_queues[vnum]; qnum++) {
         if(pkt_wait_queue[vnum][qnum].size() > 0) {
-          logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d] = %0d\n", vnum, qnum, pkt_wait_queue[vnum][qnum].size());
+          logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d] = %0d\n", vnum, qnum, pkt_wait_queue[vnum][qnum].size());
 //          print_pkt_wait_queue(vnum, qnum);
         }
         else {
-          logger::dv_debug(DV_DEBUG1, "pkt_wait_queue[%0d][%0d] = 0\n", vnum, qnum);
+          logger::dv_debug(DV_INFO, "pkt_wait_queue[%0d][%0d] = 0\n", vnum, qnum);
         }
       }
     }
     if(!is_pkt_wait_heap_empty()) {      
-//      print_pkt_heap_top();
+      print_pkt_heap_top();
     }
     else {
-      logger::dv_debug(DV_DEBUG1, "pkt_wait_heap = 0\n");
+      logger::dv_debug(DV_INFO, "pkt_wait_heap = 0\n");
     }
 
     output_handler.print_fifo(total_time_in_ns);
-    logger::dv_debug(DV_DEBUG1, "-- Simulation Status End --\n");
-    logger::dv_debug(DV_DEBUG1, "\n");
+    logger::dv_debug(DV_INFO, "-- Simulation Status End --\n");
+    logger::dv_debug(DV_INFO, "\n");
+
+    // Generate pkts as needed to all queues
+    pkt_gen.generate_pkts();
 
     // Check to see if new pkt should be sent by pktgen
     logger::dv_debug(DV_DEBUG1,"run_scheduler: check if need new pkt\n");
@@ -1029,7 +1037,7 @@ void Scheduler::print_pkt_heap_top() {
       logger::dv_debug(DV_INFO, "print_pkt_heap_top: heap[%0d] size=%0d\n", i, pkt_wait_heap[i].size());
     }
     else {
-      logger::dv_debug(DV_INFO, "print_pkt_heap_top: heap[%0d] is empty\n", i);
+      logger::dv_debug(DV_INFO, "print_pkt_heap_top: heap[%0d] size=0\n", i);
     }
   }
 }

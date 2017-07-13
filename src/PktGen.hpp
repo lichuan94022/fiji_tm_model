@@ -33,6 +33,7 @@
 #include<queue>
 
 #include "PktInfo.hpp"
+#include "QueueInfo.hpp"
 #include "OutputHandler.hpp"
 #include "sknobs.h"
 
@@ -48,18 +49,24 @@ class PktGen {
   // Knob Variables
   int *knob_num_queues;
   int knob_num_vlans;
+  int knob_num_priorities;
   int **knob_min_pkt_size;
   int **knob_max_pkt_size;
-  double knob_oport_rate;
   double **knob_iqueue_rate;
   int knob_max_wait_queue_size;
   int knob_max_wait_queue_bytes;
 
   // Status Variables
   double **cur_iqueue_rate;
-  int *cur_qnum;
-  int cur_vnum;
+  int **cur_qnum;
+  int *cur_vnum;
   int cur_pkt_id;
+
+  // Structural Variables
+  std::vector <PktInfo> **pkt_gen_queue;
+
+  // Pointer to Queue Info
+  QueueInfo **queue_info;
 
   // Pointer to Output Handler
   OutputHandler *output_handler;
@@ -94,9 +101,23 @@ class PktGen {
     //   Allocate dynamic arrays, and set pointers to wait queue and output_handler
     /////////////////////////////////////////////////////////////////////////
     //void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
-    void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, int **wait_queue_bytes, OutputHandler *ref_output_handler);
+    void init(int num_vlans, int* num_queues, int num_priorities, std::vector <PktInfo> **wait_queue, int **wait_queue_bytes, QueueInfo **ref_queue_info, OutputHandler *ref_output_handler);
 //    void init(int num_vlans, int* num_queues, std::vector <PktInfo> **wait_queue, OutputHandler *ref_output_handler);
 
+    //////////////////////////////////////////////////////////////////////
+    // Function: generate_pkts 
+    //
+    // Return Value: None
+    //
+    // Arguments: None
+    //
+    // Description: 
+    //   Generate pkts if needed (based on configured input rate)
+    //   for all queues.  Generated pkts will be dropped into a queue
+    //   select_new_pkt/need_new_pkt will select a generated pkt based on priority, 
+    //   wait queue status, output handler status.
+    /////////////////////////////////////////////////////////////////////////
+    void generate_pkts(); 
 
     //////////////////////////////////////////////////////////////////////
     // Function: need_new_pkt 

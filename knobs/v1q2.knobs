@@ -13,18 +13,37 @@
 # Number of queues per vlan
 +*vlan0_nqueues=2
 
+# Number of priorities
++*num_priorities=2
+
 # Minimum pkt size (in B) for VlanX and QnumY (overrides previous knob)
 +*vlan0_qnum*_minsize=64 
 
 # Maximum pkt size (in B) for all vlan and all queues
 +*maxsize=1024
 
+# # Queue Priorities
++*vlan0_qnum0_priority=1
++*vlan0_qnum1_priority=0
+
+# # Queue Weight
++*vlan0_qnum0_weight=1
++*vlan0_qnum1_weight=1
+
+# # Queue Max Rate
++*vlan0_qnum0_max_rate=100
++*vlan0_qnum1_max_rate=100
+
+# # Queue Max Rate
++*vlan0_qnum0_min_rate=85
++*vlan0_qnum1_min_rate=85
+
 # Max size of wait queue
 +*max_wait_queue_size=128
 +*max_wait_queue_bytes=8192
 
 # Total number of packets
-+*npkt=15000
++*npkt=5000
 
 # Stop on rcvd pkt (rather than all pkts draining)
 +*stop_on_rcvd_pkt=1

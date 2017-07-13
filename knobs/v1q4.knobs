@@ -13,6 +13,9 @@
 # Number of queues per vlan
 +*vlan0_nqueues=4
 
+# Number of priorities
++*num_priorities=4
+
 # Max size of wait queue
 +*max_wait_queue_size=128
 +*max_wait_queue_bytes=8192
@@ -33,9 +36,9 @@
 +*nrcvd_pkt=7500
 
 # Queue Priorities
-+*vlan0_qnum0_priority=0
-+*vlan0_qnum1_priority=0
-+*vlan0_qnum2_priority=0
++*vlan0_qnum0_priority=3
++*vlan0_qnum1_priority=2
++*vlan0_qnum2_priority=1
 +*vlan0_qnum3_priority=0
 
 # Queue Weight
@@ -45,10 +48,10 @@
 +*vlan0_qnum3_weight=1
 
 # Queue Max Rate
-+*vlan0_qnum0_max_rate=100
-+*vlan0_qnum1_max_rate=100
-+*vlan0_qnum2_max_rate=100
-+*vlan0_qnum3_max_rate=100
++*vlan0_qnum0_max_rate=600
++*vlan0_qnum1_max_rate=600
++*vlan0_qnum2_max_rate=600
++*vlan0_qnum3_max_rate=600
 
 # Queue Max Rate
 +*vlan0_qnum0_min_rate=85
@@ -90,7 +93,7 @@
 +*gather_bytes_per_clk=25
 
 # Shaper Decrement Type
-+*shaper_pre_decr=0
++*shaper_pre_decr=1
 +*shaper_pre_decr_both=1
 +*shaper_pre_decr_on_type=0
 
